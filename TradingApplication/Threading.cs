@@ -8,6 +8,8 @@ using System.Data.SqlClient;
 using System.Data;
 using System.Collections.Concurrent;
 using System.Threading;
+using System.Runtime.CompilerServices;
+using System.Diagnostics;
 
 namespace TradingApplication
 {
@@ -42,15 +44,23 @@ namespace TradingApplication
      * - All queries executions should be consecutive (i.e. there should not be more than one query execution at a time).
      * - All methods should be thread safe
      */
-    public class Producer : IQueryExecutor, IDisposable
+    public class Threading : IQueryExecutor, IDisposable
     {
         private CancellationTokenSource _Cts;
         private Random _Random = new Random();
         private int _WorkCounter = 0;
         private BlockingCollection<Task<String>> _Workers;
         private Task _WorkProducer;
-          
-        public Producer()
+
+        private CustomPriorityScheduler hPriorityScheduler;
+        private CustomPriorityScheduler mPriorityScheduler;
+        private CustomPriorityScheduler lPriorityScheduler;
+
+        private List<Task> waitingList = new List<Task>();
+
+        private const int SPIN_WORK_DURATION = 1000;
+
+        public Threading()
         {
             _Workers = new BlockingCollection<Task<String>>();
         }
@@ -74,7 +84,51 @@ namespace TradingApplication
                 throw new InvalidOperationException("Producer has already been started.");
 
             _Cts = new CancellationTokenSource();
-            _WorkProducer = Task.Factory.StartNew(() => Run(_Cts.Token));            
+             
+            // Define schedulers
+            lPriorityScheduler = new CustomPriorityScheduler(
+                ThreadPriority.Lowest,
+                "Lowest Thread",
+                Environment.ProcessorCount);
+
+            mPriorityScheduler = new CustomPriorityScheduler(
+                ThreadPriority.Normal,
+                "Medium Thread",
+                Environment.ProcessorCount);
+
+
+            hPriorityScheduler = new CustomPriorityScheduler(
+                ThreadPriority.Normal,
+                "Highest Thread",
+                Environment.ProcessorCount);
+
+
+
+
+          
+            for (int i = 0; i < 10; i++) // race
+            {
+                // schedule task on lowest priority
+                Task tCustom = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), _Cts.Token, TaskCreationOptions.None, lPriorityScheduler);
+                waitingList.Add(tCustom);
+
+                // schedule task on normal priority
+                tCustom = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), _Cts.Token, TaskCreationOptions.None, mPriorityScheduler);
+                waitingList.Add(tCustom);
+
+                // schedule task on highest priority
+                tCustom = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), _Cts.Token, TaskCreationOptions.None, hPriorityScheduler);
+                waitingList.Add(tCustom);
+            }
+
+            Task.WaitAll(waitingList.ToArray());
+
+
+
+
+
+
+            //_WorkProducer = Task.Factory.StartNew(() => Run(_Cts.Token));            
         }
 
         /*
@@ -117,27 +171,17 @@ namespace TradingApplication
             //}
 
 
-            for (int i = 0; i < 5; i++)
-            {
-                if (!token.IsCancellationRequested)
-                {
-                    var worker = StartNewWorker();
-                    _Workers.Add(worker);
-                    Task.Delay(100);
-                }               
-            }
+            //for (int i = 0; i < 5; i++)
+            //{
+            //    if (!token.IsCancellationRequested)
+            //    {
+            //        var worker = StartNewWorker();
+            //        _Workers.Add(worker);
+            //        Task.Delay(100);
+            //    }               
+            //}
 
-
-            for (int i = 0; i < 10; i++)
-            {
-                if (!token.IsCancellationRequested)
-                {
-                    var worker = StartAnotherWorker();
-                    _Workers.Add(worker);
-                    Task.Delay(100);
-                }
-            }
-
+             
             _Workers.CompleteAdding();
             _Workers = new BlockingCollection<Task<String>>();
         }
@@ -147,11 +191,7 @@ namespace TradingApplication
             return Task.Factory.StartNew<String>(Worker);
  
         }
-
-        private Task<String> StartAnotherWorker()
-        {
-            return Task.Factory.StartNew<String>(AnotherWorker);
-        }
+         
 
         private String Worker()
         {
@@ -178,29 +218,28 @@ namespace TradingApplication
             return result;
         }
 
-        private String AnotherWorker()
+
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
+        private static void SpinWork(int milliseconds)
         {
-            var result = GetRandomString();
+            var sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < milliseconds) ; // spin for the duration
+            sw.Stop();
+        }
 
-            try
-            {
-                // Change the thread priority to the one required.
-                Thread.CurrentThread.Priority = ThreadPriority.Highest;
+        private static Action<string> WriteThreadInfo(Thread t)
+        {
+            string s = string.Format("Name = {0}, Priority = {1}, Is pool = {2}, id = {3}",
+                t.Name,
+                t.Priority,
+                t.IsThreadPoolThread,
+                t.ManagedThreadId);
 
-                var workerId = Interlocked.Increment(ref _WorkCounter);
-                var neededTime = TimeSpan.FromSeconds(_Random.NextDouble() * 5);
-                Console.WriteLine("Worker " + workerId + " starts in " + neededTime);
-                Task.Delay(neededTime).Wait();
+            SpinWork(SPIN_WORK_DURATION);
 
-                Console.WriteLine("Worker " + workerId + " finished with " + result);
-            }
-            finally
-            {
-                // Restore the thread default priority.
-                Thread.CurrentThread.Priority = ThreadPriority.Normal;
-            }
+            Console.WriteLine(s);
 
-            return result;
+            return null;
         }
 
         /*
@@ -226,7 +265,11 @@ namespace TradingApplication
                 case Priority.High:
                     tPriority = ThreadPriority.Highest;
                     break;
-            } 
+            }
+              
+           // Task worker = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), cancelSource.Token, TaskCreationOptions.None, lPriorityScheduler);
+
+            //_Workers.Add(worker);
         }
 
         public void RunQuery(Query query)
@@ -247,8 +290,9 @@ namespace TradingApplication
                 foreach (var item in query.Params)
                 {
                     string paramName = item.Key;
-                    object parameter = (SqlParameter)item.Value;
-                     
+                    object paramValue = item.Value;
+
+                    cmd.Parameters.Add(new SqlParameter(paramName, paramValue));
                 }
                  
                 SqlDataReader rdr = cmd.ExecuteReader();

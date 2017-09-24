@@ -14,9 +14,7 @@ namespace TradingApplication
         public decimal Close { get; set; }
         public DateTime QuoteDate { get; set; }
     }
-
-    /* https://finance.yahoo.com/chart/MSFT  */
-
+    
     public interface IBacktester
     {
         /*
@@ -26,60 +24,14 @@ namespace TradingApplication
          */
         decimal CalculateMaxProfit(List<StockPrice> stockPrices);
     }
-
-
-    //TO DO: add date parameters
-
+     
     public class TradingCalcs : IBacktester
-    {
-        public decimal CalculateMaxProfit(List<StockPrice> stockPrices)
-        {
-            decimal minSharePrice = stockPrices[0].Low;
-            decimal maxSharePrice = 0;
-            decimal MaxProfit = 0;
-
-            decimal shareBuyValue = stockPrices[0].Low;
-            decimal shareSellValue = stockPrices[0].High;
-
-            DateTime shareBuyDate = DateTime.MinValue;
-            DateTime shareSellDate = DateTime.MinValue;
-
-            for (int i = 0; i < stockPrices.Count; i++)
-            {
-                if (stockPrices[i].Low < minSharePrice)
-                {
-                    minSharePrice = stockPrices[i].Low;
-
-                    // if we update the min value of share, we need to reset the Max value as 
-                    // we can only do this transaction in-sequence. We need to buy first and then only we can sell.
-                    maxSharePrice = 0;
-                }
-                else
-                {
-                    maxSharePrice = stockPrices[i].High;
-                }
-
-                // We are checking if max and min share value of stock are going to
-                // give us better profit compare to the previously stored one, then store those share values.
-                if (MaxProfit < (maxSharePrice - minSharePrice))
-                {
-                    shareBuyValue = minSharePrice;
-                    shareSellValue = maxSharePrice;
-                }
-
-                MaxProfit = Math.Max(MaxProfit, maxSharePrice - minSharePrice);
-            }
-
-            string result = string.Format("Buy stock on at ${0} and sell on at ${1}, maximum profit can be earned ${2}.", shareBuyValue, shareSellValue, MaxProfit);
-
-            Console.WriteLine(result);
-
-            return MaxProfit;  
-        }
-
-
+    {  
         public static List<StockPrice> GetTestData()
         {
+
+            /* https://finance.yahoo.com/chart/MSFT  */
+
             StockPrice quote;
 
             List<StockPrice> lst = new List<StockPrice>();
@@ -339,6 +291,51 @@ namespace TradingApplication
 
             return lst;
         }
+
+        public decimal CalculateMaxProfit(List<StockPrice> stockPrices)
+        {
+            decimal minSharePrice = stockPrices[0].Low;
+            decimal maxSharePrice = 0;
+            decimal MaxProfit = 0;
+
+            decimal shareBuyValue = stockPrices[0].Low;
+            decimal shareSellValue = stockPrices[0].High;
+
+            DateTime shareBuyDate = DateTime.MinValue;
+            DateTime shareSellDate = DateTime.MinValue;
+
+            for (int i = 0; i < stockPrices.Count; i++)
+            {
+                if (stockPrices[i].Low < minSharePrice)
+                {
+                    minSharePrice = stockPrices[i].Low;
+
+                    //If we update the min value of share, we need to reset the Max value 
+                    //since we have to buy first, and sell only afterwards.
+                    maxSharePrice = 0;
+                }
+                else
+                {
+                    maxSharePrice = stockPrices[i].High;
+                }
+
+                    //Check if max and min share value of stock are going to give us better profit
+                    //If yes - save those share values.
+                if (MaxProfit < (maxSharePrice - minSharePrice))
+                {
+                    shareBuyValue = minSharePrice;
+                    shareSellValue = maxSharePrice;
+                }
+
+                MaxProfit = Math.Max(MaxProfit, maxSharePrice - minSharePrice);
+            }
+
+            string result = string.Format("Buy stock on at ${0} and sell on at ${1}, to obtain a profit of ${2}.", shareBuyValue, shareSellValue, MaxProfit);
+
+            Console.WriteLine(result);
+
+            return MaxProfit;  
+        } 
     }
 
 }

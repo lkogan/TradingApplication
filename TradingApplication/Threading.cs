@@ -3,12 +3,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Configuration;
+using System.Data.SqlClient;
+using System.Data;
+using System.Collections.Concurrent;
 
 namespace TradingApplication
 {
     public class Query
     {
         public string Statement { get; set; }
+
         public IDictionary<string, object> Params { get; set; }
     }
 
@@ -38,6 +43,8 @@ namespace TradingApplication
      */
     public class Threading : IQueryExecutor
     {
+        private BlockingCollection<Task> _collection = new BlockingCollection<Task>();
+
         /*
         * Start IQueryExecutor asynchronously.
         */
@@ -67,7 +74,35 @@ namespace TradingApplication
 
         public void RunQuery(Query query)
         {
+            string connectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString;
+
+            using (SqlConnection conn = new SqlConnection(connectionString))
+            {
+                conn.Open();
+
+                string sqlStatement = query.Statement;
+
+                SqlCommand cmd = new SqlCommand(sqlStatement, conn);
+
+                foreach (var item in query.Params)
+                {
+                    string paramName = item.Key;
+                    object parameter = (SqlParameter)item.Value;
+                     
+                }
+                 
+                SqlDataReader rdr = cmd.ExecuteReader();
+
+                if (rdr.Read())
+                {
+                    Console.WriteLine(rdr.GetString(0));
+                }
+                else
+                {
+                    Console.WriteLine("not available yet");
+                }
+            }
 
         }
-    }
+    } 
 }

@@ -102,22 +102,28 @@ namespace TradingApplication
                 "Highest Thread",
                 Environment.ProcessorCount);
 
+             
+            foreach(var item in Workers)
+            {
+                 
+            }
 
 
-
-          
             for (int i = 0; i < 10; i++) // race
             {
                 // schedule task on lowest priority
-                Task tCustom = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), _Cts.Token, TaskCreationOptions.None, lPriorityScheduler);
+                Task tCustom = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), _Cts.Token, 
+                    TaskCreationOptions.None, lPriorityScheduler);
                 waitingList.Add(tCustom);
 
                 // schedule task on normal priority
-                tCustom = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), _Cts.Token, TaskCreationOptions.None, mPriorityScheduler);
+                tCustom = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), _Cts.Token, 
+                    TaskCreationOptions.None, mPriorityScheduler);
                 waitingList.Add(tCustom);
 
                 // schedule task on highest priority
-                tCustom = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), _Cts.Token, TaskCreationOptions.None, hPriorityScheduler);
+                tCustom = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), _Cts.Token, 
+                    TaskCreationOptions.None, hPriorityScheduler);
                 waitingList.Add(tCustom);
             }
 
@@ -251,30 +257,44 @@ namespace TradingApplication
         public void Schedule(Query query, Priority priority)
         {
             ThreadPriority tPriority = ThreadPriority.Normal;
+            string strPriority = string.Empty;
 
             switch (priority)
             {
                 case Priority.Low:
+                    strPriority = Priority.Low.ToString();
                     tPriority = ThreadPriority.Lowest;
                     break;
 
                 case Priority.Medium:
+                    strPriority = Priority.Medium.ToString();
                     tPriority = ThreadPriority.Normal;
                     break;
 
                 case Priority.High:
+                    strPriority = Priority.High.ToString();
                     tPriority = ThreadPriority.Highest;
                     break;
             }
-              
-           // Task worker = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), cancelSource.Token, TaskCreationOptions.None, lPriorityScheduler);
+             
+            var item = Task.Run(() => 
+            {
+                RunQuery(query);
+                return strPriority;
+            });
 
-            //_Workers.Add(worker);
+            _Workers.Add(item);
+ 
+            //_Workers.CompleteAdding();
+
+           
         }
 
         public void RunQuery(Query query)
         {
             string connectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString;
+
+            Console.WriteLine("Executing: " + query.Statement);
 
             return;
 

@@ -16,18 +16,60 @@ namespace TradingApplication
         static void Main(string[] args)
         {
             Console.WriteLine("Task 1 - execute tasks asynchronously, with priority set.");
+
+            var token = new CancellationTokenSource();
+            var PriorityCollection = new PriorityCollection();
+
+            var param = new Dictionary<string, object> { { "Param1", 1 } };
+            Query1 qryHigh = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.High };
+            Query1 qryHigh1 = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.High };
+            Query1 qryHigh2 = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.High };
+
+            Query1 qryLow = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.Low };
+            Query1 qryLow1 = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.Low };
+            Query1 qryLow2 = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.Low };
+
+            Query1 qryMed = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.Middle };
+            Query1 qryMed1 = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.Middle };
+            Query1 qryMed2 = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.Middle };
+
+
+            Task.Factory.ContinueWhenAll(new[]
+                                             {
+                                                Task.Factory.StartNew(() => PriorityCollection.ProcessItems(token.Token)),
+                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryHigh)),
+                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryLow)),
+
+                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryMed2)),
+                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryHigh1)),
+                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryLow1)),
+
+
+                                                 Task.Factory.StartNew(() => PriorityCollection.Publish(qryMed1)),
+                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryHigh2)),
+
+                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryLow2)),
+                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryMed)),
+
+
+
+                                             }, tasks => { });
+            Thread.Sleep(5000);
+            token.Cancel();
+
+
              
-            Threading t = new Threading();
+            //Threading t = new Threading();
 
-            var param = new Dictionary<string, object> { { "Param1", 6 } };
-            Query qry = new Query { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param };
+           
+            //Query qry = new Query { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param };
 
 
-            t.Schedule(qry, Priority.Low); 
-            t.Schedule(qry, Priority.Medium); 
-            t.Schedule(qry, Priority.High);
+            //t.Schedule(qry, Priority.Low); 
+            //t.Schedule(qry, Priority.Medium); 
+            //t.Schedule(qry, Priority.High);
 
-            t.Start();
+            //t.Start();
 
             //ConcurrentQueue<Action> _writeLineActions = new ConcurrentQueue<Action>(); // used to avoid Console.WriteLine before everything had completed
 

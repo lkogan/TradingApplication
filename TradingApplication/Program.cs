@@ -15,107 +15,26 @@ namespace TradingApplication
 
         static void Main(string[] args)
         {
-            Console.WriteLine("Task 1 - execute tasks asynchronously, with priority set.");
-
-            var token = new CancellationTokenSource();
-            var PriorityCollection = new PriorityCollection();
-
-            var param = new Dictionary<string, object> { { "Param1", 1 } };
-            Query1 qryHigh = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.High };
-            Query1 qryHigh1 = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.High };
-            Query1 qryHigh2 = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.High };
-
-            Query1 qryLow = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.Low };
-            Query1 qryLow1 = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.Low };
-            Query1 qryLow2 = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.Low };
-
-            Query1 qryMed = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.Middle };
-            Query1 qryMed1 = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.Middle };
-            Query1 qryMed2 = new Query1 { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param, Priority1 = Priority1.Middle };
-
-
-            Task.Factory.ContinueWhenAll(new[]
-                                             {
-                                                Task.Factory.StartNew(() => PriorityCollection.ProcessItems(token.Token)),
-                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryHigh)),
-                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryLow)),
-
-                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryMed2)),
-                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryHigh1)),
-                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryLow1)),
-
-
-                                                 Task.Factory.StartNew(() => PriorityCollection.Publish(qryMed1)),
-                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryHigh2)),
-
-                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryLow2)),
-                                                Task.Factory.StartNew(() => PriorityCollection.Publish(qryMed)),
-
-
-
-                                             }, tasks => { });
-            Thread.Sleep(5000);
-            token.Cancel();
-
-
+            Console.WriteLine("* Task 1 - execute tasks asynchronously, with priority set.");
              
-            //Threading t = new Threading();
+            var pc = new PriorityCollection(); 
+            pc.ScheduleBatchToRun();    //Load test data + run Schedule method
 
-           
-            //Query qry = new Query { Statement = "SELECT * FROM All Kinds Of Tasks", Params = param };
+            pc.Start();
 
+            Thread.Sleep(2000);
+            pc.Stop();
 
-            //t.Schedule(qry, Priority.Low); 
-            //t.Schedule(qry, Priority.Medium); 
-            //t.Schedule(qry, Priority.High);
-
-            //t.Start();
-
-            //ConcurrentQueue<Action> _writeLineActions = new ConcurrentQueue<Action>(); // used to avoid Console.WriteLine before everything had completed
-
-            //var cancelSource = new CancellationTokenSource();
-
-            //// Define schedulers
-            //var lPriorityScheduler = new CustomPriorityScheduler(
-            //    ThreadPriority.Lowest,
-            //    "Lowest Thread",
-            //    Environment.ProcessorCount);
-
-            //var mPriorityScheduler = new CustomPriorityScheduler(
-            //    ThreadPriority.Normal,
-            //    "Medium Thread",
-            //    Environment.ProcessorCount);
+            Thread.Sleep(5000);
+            //token.Cancel();
 
 
-            //var hPriorityScheduler = new CustomPriorityScheduler(
-            //    ThreadPriority.Normal,
-            //    "Highest Thread",
-            //    Environment.ProcessorCount);
-
-            //List<Task> waitingList = new List<Task>();
-            //for (int i = 0; i < 10; i++) // race
-            //{
-            //    // schedule task on lowest priority
-            //    Task tCustom = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), cancelSource.Token, TaskCreationOptions.None, lPriorityScheduler);
-            //    waitingList.Add(tCustom);
-
-            //    // schedule task on normal priority
-            //    tCustom = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), cancelSource.Token, TaskCreationOptions.None, mPriorityScheduler);
-            //    waitingList.Add(tCustom);
-
-            //    // schedule task on highest priority
-            //    tCustom = Task.Factory.StartNew(() => WriteThreadInfo(Thread.CurrentThread), cancelSource.Token, TaskCreationOptions.None, hPriorityScheduler);
-            //    waitingList.Add(tCustom);
-            //}
-
-            //Task.WaitAll(waitingList.ToArray());
-
-
+              
 
             //Console.ReadKey();
 
 
-            Console.WriteLine(Environment.NewLine + "Task 2 - calculate the maximum profit - buy once, sell once." + Environment.NewLine);
+            Console.WriteLine(Environment.NewLine + "* Task 2 - calculate the maximum profit - buy once, sell once.");
 
             TradingCalcs tc = new TradingCalcs();
 
@@ -126,7 +45,7 @@ namespace TradingApplication
             tc.CalculateMaxProfit(lstSampleData);
 
 
-            Console.WriteLine(Environment.NewLine + "Task 3 - Create SQL code to calculate 95th percentile of requests duration over some date range for each distinct URI in the activity log.");
+            Console.WriteLine(Environment.NewLine + "* Task 3 - Create SQL code to calculate 95th percentile of requests duration over some date range for each distinct URI in the activity log.");
              
             Console.WriteLine("Select distinct uri, PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY duration_ms)");
             Console.WriteLine("OVER(PARTITION BY uri) AS duration from client_activity");

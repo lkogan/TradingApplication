@@ -11,24 +11,49 @@ using System.Threading.Tasks;
 namespace TradingApplication
 {
 
+    public class Query
+    {
+        public string Statement { get; set; }
+
+        public IDictionary<string, object> Params { get; set; }
+
+        public Priority Priority { get; set; }
+    }
+     
+    public enum Priority
+    {
+        Low = 0,
+        Medium = 1,
+        High = 2
+    }
+     
+    public interface IQueryExecutor
+    {
+        void Start();
+
+        void Stop();
+
+        void Schedule(Query query, Priority priority);
+    }
+
     public class PriorityCollection : IQueryExecutor 
     {
-        private readonly BlockingCollection<Query1> low = new BlockingCollection<Query1>();
-        private readonly BlockingCollection<Query1> middle = new BlockingCollection<Query1>();
-        private readonly BlockingCollection<Query1> high = new BlockingCollection<Query1>();
+        private readonly BlockingCollection<Query> low = new BlockingCollection<Query>();
+        private readonly BlockingCollection<Query> middle = new BlockingCollection<Query>();
+        private readonly BlockingCollection<Query> high = new BlockingCollection<Query>();
         private readonly BlockingCollection<Guid> main = new BlockingCollection<Guid>();
-        private readonly BlockingCollection<Query1>[] queue;
+        private readonly BlockingCollection<Query>[] queue;
 
-        private readonly Dictionary<Priority1, BlockingCollection<Query1>> PriorityMap = new Dictionary<Priority1, BlockingCollection<Query1>>();
+        private readonly Dictionary<Priority, BlockingCollection<Query>> PriorityMap = new Dictionary<Priority, BlockingCollection<Query>>();
 
-        private CancellationTokenSource _Cts;
+        public CancellationTokenSource _Cts;
           
         public PriorityCollection()
         {
             queue = new[] { high, middle, low }; 
-            PriorityMap.Add(Priority1.Low, low);
-            PriorityMap.Add(Priority1.Middle, middle);
-            PriorityMap.Add(Priority1.High, high);
+            PriorityMap.Add(Priority.Low, low);
+            PriorityMap.Add(Priority.Medium, middle);
+            PriorityMap.Add(Priority.High, high);
         }
 
         public void Start()
@@ -38,7 +63,9 @@ namespace TradingApplication
 
             _Cts = new CancellationTokenSource();
 
+            Task.Factory.StartNew(() => ExecuteQueries(_Cts.Token)); 
         }
+
         public void Stop()
         {
             var cts = _Cts;
@@ -48,7 +75,9 @@ namespace TradingApplication
                 cts.Cancel();
                 cts.Dispose();
                 _Cts = null;
-            } 
+            }
+
+            main.CompleteAdding();
         }
 
 
@@ -58,45 +87,68 @@ namespace TradingApplication
         * Queries with higher priority should be executed before the ones with lower priority.
         * If a query with a lower priority is being executed at the time, it may not be canceled (or re-scheduled).
         */
+
         public void Schedule(Query query, Priority priority)
         {
-            ThreadPriority tPriority = ThreadPriority.Normal;
-            string strPriority = string.Empty;
+            //Made priority a property of query class itself, for convenience
+            query.Priority = priority;
 
-            switch (priority)
+            var guid = Guid.NewGuid();
+            PriorityMap[priority].Add(query);
+            main.Add(guid);
+
+            Console.WriteLine("Adding query: " + query.Statement + " Priority: " + query.Priority); 
+        }
+         
+        public void ScheduleBatchToRun()
+        {
+            #region Test Data
+                var param = new Dictionary<string, object> { { "Param1", 1 } };
+                Query qryHigh = new Query { Statement = "SELECT TOP 1 * FROM AllKindsOfTasks", Params = param };
+                Query qryHigh1 = new Query { Statement = "SELECT TOP 2 * FROM AllKindsOfTasks", Params = param };
+                Query qryHigh2 = new Query { Statement = "SELECT TOP 3 * FROM AllKindsOfTasks", Params = param };
+
+                Query qryMed = new Query { Statement = "SELECT TOP 4 * FROM AllKindsOfTasks", Params = param };
+                Query qryMed1 = new Query { Statement = "SELECT TOP 5 * FROM AllKindsOfTasks", Params = param };
+                Query qryMed2 = new Query { Statement = "SELECT TOP 6 * FROM AllKindsOfTasks", Params = param };
+
+                Query qryLow = new Query { Statement = "SELECT TOP 7 * FROM AllKindsOfTasks", Params = param };
+                Query qryLow1 = new Query { Statement = "SELECT TOP 8 * FROM AllKindsOfTasks", Params = param };
+                Query qryLow2 = new Query { Statement = "SELECT TOP 9 * FROM AllKindsOfTasks", Params = param };
+            #endregion
+
+            Task.Factory.ContinueWhenAll(new[]
+                            {
+                                Task.Factory.StartNew(() => Schedule(qryHigh, Priority.High)),
+                                Task.Factory.StartNew(() => Schedule(qryLow, Priority.Low)),
+                                Task.Factory.StartNew(() => Schedule(qryMed2, Priority.Medium)),
+                                Task.Factory.StartNew(() => Schedule(qryHigh1, Priority.High)),
+                                Task.Factory.StartNew(() => Schedule(qryLow1, Priority.Low)),
+                                Task.Factory.StartNew(() => Schedule(qryMed1, Priority.Medium)),
+                                Task.Factory.StartNew(() => Schedule(qryHigh2, Priority.High)),
+                                Task.Factory.StartNew(() => Schedule(qryLow2, Priority.Low)),
+                                Task.Factory.StartNew(() => Schedule(qryMed, Priority.Medium)),
+                            }, tasks => { });
+
+        }
+
+        public void ExecuteQueries(CancellationToken token)
+        {  
+
+            foreach (var guid in main.GetConsumingEnumerable(token))
             {
-                case Priority.Low:
-                    strPriority = Priority.Low.ToString();
-                    tPriority = ThreadPriority.Lowest;
-                    break;
+                Query query;
+                BlockingCollection<Query>.TakeFromAny(queue, out query);
+                var Priority = query.Priority;
+                Console.Out.WriteLine("Query with Priority {0} is processed: " + query.Statement, Priority);
 
-                case Priority.Medium:
-                    strPriority = Priority.Medium.ToString();
-                    tPriority = ThreadPriority.Normal;
-                    break;
-
-                case Priority.High:
-                    strPriority = Priority.High.ToString();
-                    tPriority = ThreadPriority.Highest;
-                    break;
-            }
-
-            var item = Task.Run(() =>
-            {
                 RunQuery(query);
-                return strPriority;
-            });
-             
-            //_Workers.CompleteAdding();
-
-
+            } 
         }
 
         public void RunQuery(Query query)
         {
             string connectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString;
-
-            Console.WriteLine("Executing: " + query.Statement);
 
             return;
 
@@ -129,71 +181,6 @@ namespace TradingApplication
                 }
             }
 
-        }
-
-
-        public void Publish(Query1 item)
-        {
-            var guid = Guid.NewGuid();
-            PriorityMap[item.Priority1].Add(item);
-            main.Add(guid);
-             //Console.Out.WriteLine("item with Priority1 {0} is published", item.Priority1);
-        }
-
-        public void ProcessItems(CancellationToken token)
-        {
-            foreach (var guid in main.GetConsumingEnumerable(token))
-            {
-                Query1 item;
-                BlockingCollection<Query1>.TakeFromAny(queue, out item);
-                var Priority1 = item.Priority1;
-                Console.Out.WriteLine("item with Priority {0} is processed", Priority1);
-                //TestList.Add(Priority1);
-            }
-        }
-    }
-
-    public enum Priority1
-    {
-        High,
-        Middle,
-        Low
-    }
-
-    public class Query1
-    {
-        public Priority1 Priority1 { get; set; }
-        public string Statement { get; set; }
-        public IDictionary<string, object> Params { get; set; }
-    }
-
-    public class PriorityCollectionTests
-    { 
-        public void should_process_items_by_their_priorities()
-        {
-            var token = new CancellationTokenSource();
-            var PriorityCollection = new PriorityCollection();
-            Task.Factory.ContinueWhenAll(new[]
-                                             {
-                                                 Task.Factory.StartNew(
-                                                     () => PriorityCollection.ProcessItems(token.Token)),
-                                                 GenerateItems(PriorityCollection, Priority1.Low),
-                                                 GenerateItems(PriorityCollection, Priority1.High),
-                                                 GenerateItems(PriorityCollection, Priority1.Middle)
-                                             }, tasks => { });
-            Thread.Sleep(5000);
-            token.Cancel();
-
-            //PriorityCollection.TestList.Should().ContainInOrder(
-            //    Enumerable.Range(0, 10).Select(i => Priority1.High).Union(
-            //        Enumerable.Range(0, 10).Select(i => Priority1.Middle)).Union(
-            //            Enumerable.Range(0, 10).Select(i => Priority1.Low)));
-        }
-
-        private static Task GenerateItems(PriorityCollection PriorityCollection, Priority1 Priority1)
-        {
-            return Task.Factory.StartNew(() =>
-                Enumerable.Range(0, 10).ToList().ForEach(i => PriorityCollection.Publish(new Query1 { Priority1 = Priority1 })));
-        }
+        } 
     }
 }

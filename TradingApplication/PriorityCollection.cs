@@ -36,7 +36,7 @@ namespace TradingApplication
         void Schedule(Query query, Priority priority);
     }
 
-    public class PriorityCollection : IQueryExecutor 
+    public class PriorityThreading : IQueryExecutor 
     {
         private readonly BlockingCollection<Query> low = new BlockingCollection<Query>();
         private readonly BlockingCollection<Query> middle = new BlockingCollection<Query>();
@@ -48,7 +48,7 @@ namespace TradingApplication
 
         public CancellationTokenSource _Cts;
           
-        public PriorityCollection()
+        public PriorityThreading()
         {
             queue = new[] { high, middle, low }; 
             PriorityMap.Add(Priority.Low, low);
@@ -102,20 +102,20 @@ namespace TradingApplication
          
         public void ScheduleBatchToRun()
         {
-            #region Test Data
-                var param = new Dictionary<string, object> { { "Param1", 1 } };
-                Query qryHigh = new Query { Statement = "SELECT TOP 1 * FROM AllKindsOfTasks", Params = param };
-                Query qryHigh1 = new Query { Statement = "SELECT TOP 2 * FROM AllKindsOfTasks", Params = param };
-                Query qryHigh2 = new Query { Statement = "SELECT TOP 3 * FROM AllKindsOfTasks", Params = param };
+            //Test data
+            var param = new Dictionary<string, object> { { "Param1", 1 } };
+            Query qryHigh = new Query { Statement = "SELECT TOP 1 * FROM AllKindsOfTasks", Params = param };
+            Query qryHigh1 = new Query { Statement = "SELECT TOP 2 * FROM AllKindsOfTasks", Params = param };
+            Query qryHigh2 = new Query { Statement = "SELECT TOP 3 * FROM AllKindsOfTasks", Params = param };
 
-                Query qryMed = new Query { Statement = "SELECT TOP 4 * FROM AllKindsOfTasks", Params = param };
-                Query qryMed1 = new Query { Statement = "SELECT TOP 5 * FROM AllKindsOfTasks", Params = param };
-                Query qryMed2 = new Query { Statement = "SELECT TOP 6 * FROM AllKindsOfTasks", Params = param };
+            Query qryMed = new Query { Statement = "SELECT TOP 4 * FROM AllKindsOfTasks", Params = param };
+            Query qryMed1 = new Query { Statement = "SELECT TOP 5 * FROM AllKindsOfTasks", Params = param };
+            Query qryMed2 = new Query { Statement = "SELECT TOP 6 * FROM AllKindsOfTasks", Params = param };
 
-                Query qryLow = new Query { Statement = "SELECT TOP 7 * FROM AllKindsOfTasks", Params = param };
-                Query qryLow1 = new Query { Statement = "SELECT TOP 8 * FROM AllKindsOfTasks", Params = param };
-                Query qryLow2 = new Query { Statement = "SELECT TOP 9 * FROM AllKindsOfTasks", Params = param };
-            #endregion
+            Query qryLow = new Query { Statement = "SELECT TOP 7 * FROM AllKindsOfTasks", Params = param };
+            Query qryLow1 = new Query { Statement = "SELECT TOP 8 * FROM AllKindsOfTasks", Params = param };
+            Query qryLow2 = new Query { Statement = "SELECT TOP 9 * FROM AllKindsOfTasks", Params = param };
+             
 
             Task.Factory.ContinueWhenAll(new[]
                             {
@@ -133,17 +133,23 @@ namespace TradingApplication
         }
 
         public void ExecuteQueries(CancellationToken token)
-        {  
-
-            foreach (var guid in main.GetConsumingEnumerable(token))
+        {
+            try
             {
-                Query query;
-                BlockingCollection<Query>.TakeFromAny(queue, out query);
-                var Priority = query.Priority;
-                Console.Out.WriteLine("Query with Priority {0} is processed: " + query.Statement, Priority);
+                foreach (var guid in main.GetConsumingEnumerable(token))
+                {
+                    Query query;
+                    BlockingCollection<Query>.TakeFromAny(queue, out query);
+                    var Priority = query.Priority;
+                    Console.Out.WriteLine("Query with Priority {0} is processed: " + query.Statement, Priority);
 
-                RunQuery(query);
-            } 
+                    RunQuery(query);
+                }
+            }
+            catch (OperationCanceledException ex)
+            {
+                Console.Out.WriteLine("Batch execution has been cancelled");
+            }
         }
 
         public void RunQuery(Query query)
